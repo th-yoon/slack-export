@@ -39,6 +39,26 @@ def getHistory(pageableObject, channelId, pageSize = 100):
                     oldest    = 0,
                     count     = pageSize
                 ).body
+        except requests.exceptions.ConnectionError as e:
+            retryInSeconds = 1
+            print("Probably hit the rate limit? error: {0}".format(repr(e)))
+            print(u"Rate limit hit. Retrying in {0} second{1}.".format(retryInSeconds, "s" if retryInSeconds > 1 else ""))
+            sleep(retryInSeconds)
+            if isinstance(pageableObject, Conversations):
+                response = pageableObject.history(
+                    channel=channelId,
+                    latest=lastTimestamp,
+                    oldest=0,
+                    limit=pageSize
+                ).body
+            else:
+                response = pageableObject.history(
+                    channel=channelId,
+                    latest=lastTimestamp,
+                    oldest=0,
+                    count=pageSize
+                ).body
+
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
                 retryInSeconds = int(e.response.headers['Retry-After'])
@@ -184,7 +204,7 @@ def dumpChannelFile():
             mpim.append(group)
             continue
         private.append(group)
-    
+
     # slack viewer wants DMs to have a members list, not sure why but doing as they expect
     for dm in dms:
         dm['members'] = [dm['user'], tokenOwnerId]
@@ -276,7 +296,7 @@ def bootstrapKeyValues():
     users = slack.users.list().body['members']
     print("Found {0} Users".format(len(users)))
     sleep(1)
-    
+
     channels = slack.conversations.list(limit = 1000, types=('public_channel')).body['channels']
     print("Found {0} Public Channels".format(len(channels)))
     sleep(1)
@@ -285,8 +305,15 @@ def bootstrapKeyValues():
     print("Found {0} Private Channels or Group DMs".format(len(groups)))
     # need to retrieve channel memberships for the slack-export-viewer to work
     for n in range(len(groups)):
-        groups[n]["members"] = slack.conversations.members(limit=1000, channel=groups[n]['id']).body['members']
-        print("Retrieved members of {0}".format(groups[n]['name']))
+        try:
+            groups[n]["members"] = slack.conversations.members(limit=1000, channel=groups[n]['id']).body['members']
+            print("Retrieved members of {0}".format(groups[n]['name']))
+        except requests.exceptions.ConnectionError as e:
+            print("Probably hit the rate limit? error: {0}".format(repr(e)))
+            print("Failed to load members of {0}".format(groups[n]['name']))
+            print("Sleeping extra")
+            sleep(5)
+        sleep(1)
     sleep(1)
 
     dms = slack.conversations.list(limit = 1000, types=('im')).body['channels']
@@ -370,7 +397,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    users = []    
+    users = []
     channels = []
     groups = []
     dms = []
