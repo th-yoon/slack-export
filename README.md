@@ -1,4 +1,62 @@
 # Slack Exporter
+## Notes
+The new API system introduces more fine grained control over permissions of your apps. That's a plus for 3rd party apps, but a bit of a downside for this simple script (it's probably easier to read the script and verify that it won't do any harm than setting the permissions).
+
+Go to https://api.slack.com/apps and Create New App. Then click on your app (also here) and go to Add features and functionality -> Permissions -> Scopes and add the following scopes User Token Scopes:
+
+* channels:history
+* channels:read
+* groups:history
+* groups:read
+* im:history
+* im:read
+* mpim:history
+* mpim:read
+* users:read
+
+Then install the app in your workspace, accept the permissions and copy the token. It says OAuth Access Token, tbh I'm not really sure, but I think this should be the user token then.
+
+Using a slightly modified verison of the fork by @gonzalognzl, I was then successful to run the export:
+
+`python slack_export.py --token xoxp-TOKEN`
+
+I'm not entirely sure if this is the right way to do it, but it seems to work for me (without adding any bots to channels or DMs).
+
+
+The following change must be made to the "slacker" dependency:
+```diff
+diff --git a/slacker/__init__.py b/slacker/__init__.py
+index cc06892..8cc5552 100644
+--- a/slacker/__init__.py
++++ b/slacker/__init__.py
+@@ -66,7 +66,7 @@ class BaseAPI(object):
+
+     def _request(self, request_method, method, **kwargs):
+         if self.token:
+-            kwargs.setdefault('params', {})['token'] = self.token
++            kwargs.setdefault('headers', {})['Authorization'] = f'Bearer {self.token}'
+
+         url = get_api_url(method)
+```
+
+
+You may or may not need to join all public channels you wish to export, which can be done programmatically:
+```diff
+diff --git a/slack_export.py b/slack_export.py
+index 8757eac..d173e12 100644
+--- a/slack_export.py
++++ b/slack_export.py
+@@ -169,6 +169,7 @@ def fetchPublicChannels(channels):
+         print("Fetching history for Public Channel: {0}".format(channelDir))
+         channelDir = channel['name'].encode('utf-8')
+         mkdir( channelDir )
++        slack.conversations.join(channel['id'])
+         messages = getHistory(slack.conversations, channel['id'])
+         parseMessages( channelDir, messages, 'channel')
+```
+
+
+# Slack Exporter
 A python slack exporter
 
 - This is offered free of charge! 

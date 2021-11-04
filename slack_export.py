@@ -189,6 +189,7 @@ def fetchPublicChannels(channels):
         print("Fetching history for Public Channel: {0}".format(channelDir))
         channelDir = channel['name'].encode('utf-8')
         mkdir( channelDir )
+        # slack.conversations.join(channel['id'])
         messages = getHistory(slack.conversations, channel['id'])
         parseMessages( channelDir, messages, 'channel')
 
@@ -293,7 +294,12 @@ def doTestAuth():
 # Since Slacker does not Cache.. populate some reused lists
 def bootstrapKeyValues():
     global users, channels, groups, dms
-    users = slack.users.list().body['members']
+    users_list = slack.users.list(limit=500)
+    users = users_list.body['members']
+    while len(users_list.body['members']) >= 500:
+        users_list = slack.users.list(limit=500, cursor=users_list.body['response_metadata']['next_cursor'])
+        users.extend(users_list.body['members'])
+
     print("Found {0} Users".format(len(users)))
     sleep(1)
 
